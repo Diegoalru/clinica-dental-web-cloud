@@ -1,1 +1,39 @@
 @import "tailwindcss";
+
+/* Tokens de diseño. Paleta celeste de clínica: brand = escala sky de Tailwind, para poder cambiarla en un solo lugar. */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-brand-50: #f0f9ff;
+  --color-brand-100: #e0f2fe;
+  --color-brand-200: #bae6fd;
+  --color-brand-300: #7dd3fc;
+  --color-brand-400: #38bdf8;
+  --color-brand-500: #0ea5e9;
+  --color-brand-600: #0284c7;
+  --color-brand-700: #0369a1;
+  --color-brand-800: #075985;
+  --color-brand-900: #0c4a6e;
+  --color-brand-950: #082f49;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--color-slate-50);
+    color: var(--color-slate-700);
+  }
+}
+
+/* Fondo rayado para bloqueos y horarios ocupados en la agenda. */
+@utility bg-stripes {
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--color-zinc-100) 0 6px,
+    var(--color-zinc-200) 6px 12px
+  );
+}
