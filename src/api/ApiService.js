@@ -45,4 +45,22 @@ export class ApiService {
     const { data } = await this.client.post(this.buildUrl(path), body, config)
     return data
   }
+
+  /** Reemplaza un recurso completo. Mismos parámetros que post. */
+  async put(path = '', body, config = {}) {
+    const { data } = await this.client.put(this.buildUrl(path), body, config)
+    return data
+  }
+
+  /** Actualiza parte de un recurso (por ejemplo, el estado). Mismos parámetros que post. */
+  async patch(path = '', body, config = {}) {
+    const { data } = await this.client.patch(this.buildUrl(path), body, config)
+    return data
+  }
+
+  /** Mismos parámetros que get. */
+  async delete(path = '', config = {}) {
+    const { data } = await this.client.delete(this.buildUrl(path), config)
+    return data
+  }
 }

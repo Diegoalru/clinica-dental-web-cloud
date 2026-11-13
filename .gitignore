@@ -29,4 +29,4 @@ dist-ssr
 !.env.example
 
 # Material de contexto local (no se versiona)
-context/
+/context/
