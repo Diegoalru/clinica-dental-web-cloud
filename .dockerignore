@@ -1,0 +1,26 @@
+# Dependencias y builds locales: se generan dentro de la imagen
+node_modules
+dist
+dist-ssr
+
+# Variables locales: en la imagen se pasan como build-args
+.env
+.env.*
+
+# Git, editores y material local
+.git
+.gitignore
+.idea
+.vscode
+.claude
+context
+*.md
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Logs y sistema
+*.log
+.DS_Store
+Thumbs.db
