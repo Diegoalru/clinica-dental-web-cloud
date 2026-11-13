@@ -1,3 +1,3 @@
 export { ApiError } from './ApiError'
 export { ApiService } from './ApiService'
-export { httpClient } from './httpClient'
+export { httpClient, setSessionExpiredHandler } from './httpClient'
