@@ -29,9 +29,11 @@ Las pruebas no usan Vitest: `node --test` alcanza para utilidades puras (`src/ut
 
 - **JavaScript (JSX), no TypeScript.** Linter: Oxlint (`.oxlintrc.json`).
 - **Alias `@` → `src/`** (definido en `vite.config.js` y `jsconfig.json`). Usar `@/...` en lugar de rutas relativas largas.
-- **Tailwind v4** vía plugin `@tailwindcss/vite`; `src/index.css` solo contiene `@import "tailwindcss"`. No hay `tailwind.config.js`.
-- **React Router v8 en modo data router:** las rutas viven en `src/router/index.jsx` con `createBrowserRouter`, y `main.jsx` monta el `RouterProvider` (no existe `App.jsx`). Las rutas hijas cuelgan de `MainLayout`; `errorElement` (`ErrorPage`) atrapa errores inesperados y `path: '*'` muestra `NotFound`. Importar todo desde `react-router`, no `react-router-dom`.
-- **Organización por funcionalidad:** `src/features/<modulo>/{components,hooks,services,pages}` con un módulo por área del modelo de datos (auth, patients, dentists, services, appointments, medical-records, reports). Lo compartido va en `components/{ui,common}`, `hooks`, `utils`, `layouts`, `context`, `constants`. Muchas carpetas solo contienen `.gitkeep`; borrarlo al agregar archivos reales.
+- **Tailwind v4** vía plugin `@tailwindcss/vite`. `src/index.css` importa Tailwind y define los tokens en `@theme` (`--color-brand-*` = paleta celeste, fuente Inter) y la utilidad `bg-stripes` (bloqueos de agenda). No hay `tailwind.config.js`. Usar `bg-brand-600`, `text-brand-700`, etc., no `sky-*` directo.
+- **React Router v8 en modo data router:** `src/router/routes.jsx` define las rutas (reutilizable con un router estático en pruebas), `src/router/lazyPages.jsx` los `React.lazy` de las páginas por rol y `src/router/index.jsx` crea el `createBrowserRouter`; `main.jsx` monta el `RouterProvider` (no existe `App.jsx`). Las rutas hijas cuelgan de `MainLayout`; `errorElement` (`ErrorPage`) atrapa errores inesperados y `path: '*'` muestra `NotFound`. Importar todo desde `react-router`, no `react-router-dom`.
+- **Organización por funcionalidad:** `src/features/<modulo>/{components,hooks,services,pages,mocks,validation}` con un módulo por área del modelo de datos (auth, patients, dentists, services, appointments, medical-records, reports, users). Lo compartido va en `components/{ui,common}`, `hooks`, `utils`, `layouts`, `context`, `constants`. Borrar el `.gitkeep` al agregar archivos reales a una carpeta.
+- **Datos de ejemplo:** las pantallas de los módulos (todo menos auth) leen de `features/<modulo>/mocks/*.js` mientras no existan los endpoints; cada lectura tiene un comentario `TODO(api)` con el método de `features/<modulo>/services/*Service.js` (esqueletos sobre `ApiService`) que debe sustituirla. `features/appointments/mocks/appointments.js` fija `MOCK_TODAY` como "hoy" de las agendas. `UI_FLOWS.md` documenta cada flujo y qué mock alimenta cada página.
+- **Constantes de dominio:** `constants/appointmentStatus.js` (estados de cita, entidad y notificación tal como el CHECK de la base, con etiquetas y tonos), `constants/navigation.js` (`NAV_BY_ROLE` para el header y el hub de inicio), `constants/routes.js` (incluye `receptionAppointmentRoute(id)` y `dentistAttentionRoute(id)`).
 
 ### Capa de API (`src/api/`)
 
@@ -47,7 +49,8 @@ Toda comunicación con el backend pasa por aquí; no usar `axios` directamente e
 
 - `context/AuthProvider.jsx` envuelve al router en `main.jsx`. Guarda solo el token; el usuario vive en memoria y se recupera con `GET /auth/me` al cargar la página. Expone `user`, `isAuthenticated`, `isLoading`, `login`, `register`, `logout` y `hasRole`, que se leen con `hooks/useAuth.js`.
 - `components/common/ProtectedRoute.jsx`: ruta padre que exige sesión y, con la prop `roles`, un rol. Sin sesión envía a `/login` recordando el destino; con otro rol, a `/acceso-denegado`.
-- `components/common/GuestRoute.jsx`: ruta padre de login y registro. Con sesión redirige al destino recordado o a `/inicio`; por eso los formularios no navegan después de iniciar sesión.
+- `components/common/GuestRoute.jsx`: ruta padre de login y registro. Con sesión redirige al destino recordado si el rol puede abrirlo, o a `/inicio`; por eso los formularios no navegan después de iniciar sesión.
+- `constants/routeAccess.js`: roles por área (`AREA_ROLES`, que usa el router) y prefijos de ruta por área (`canRoleAccess`, `resolvePostLoginDestination`). Un área nueva con rol propio se registra en los dos lugares: la ruta en `router/routes.jsx` y el prefijo aquí. Tiene pruebas (`npm test`).
 - `constants/routes.js` (rutas) y `constants/roles.js` (roles del API, sus etiquetas y los grupos `STAFF_ROLES` y `CAN_BOOK_ROLES`).
 
 ### Formularios
@@ -57,7 +60,8 @@ Patrón del módulo `auth`, a repetir en los demás:
 - La lógica va en un hook (`features/auth/hooks/useLoginForm.js`, `useRegisterForm.js`) que devuelve `field(nombre)`, `errors`, `formError`, `isSubmitting` y `onSubmit`. La página solo pinta.
 - Las reglas de React Hook Form van aparte (`features/auth/validation/authRules.js`) y repiten las del API.
 - `utils/formErrors.js` (`applyApiErrors`) reparte un `ApiError` entre los campos y devuelve el mensaje general.
-- `components/ui/FormField.jsx` es el campo base (etiqueta, input, error). Las páginas y este componente tienen estilos mínimos a propósito: el diseño lo trabaja otro integrante y no debe tener que tocar hooks ni servicios.
+- `components/ui/FormField.jsx` es el campo base (etiqueta, input, error); `Select`, `Textarea` y `Checkbox` siguen el mismo contrato y comparten clases en `components/ui/fieldStyles.js`. El resto de la librería visual (`Button`, `Card`, `PageHeader`, `StatusBadge`, `Stat`, `Modal`, `Table`, `Tabs`, `Stepper`, `Alert`, `EmptyState`, `SearchInput`, `Pagination`, `LoadingState`, `Icon`) está en `components/ui/`; su contrato se resume en `UI_FLOWS.md` §6. Los mismos patrones de hook (`usePatientForm`, `useMedicalRecordForm`, `useServiceForm`, `useUserForm`) se repiten en los demás módulos.
+- Las páginas con sesión se envuelven en `components/common/PageContainer.jsx`; login y registro, en `layouts/AuthLayout.jsx`.
 
 ### Fechas y horas
 
@@ -66,6 +70,7 @@ La clínica trabaja en hora de Costa Rica y el navegador del usuario puede estar
 - El API responde las fechas con desfase (`2026-11-20T09:00:00-06:00`). Para mostrarlas: `formatClinicDateTime`, `formatClinicDate`, `formatClinicTime`. Para agrupar o comparar: `getClinicParts` y `toClinicIsoDate`.
 - Para enviar: `toApiDateTime(fecha, hora)` arma `2026-11-20T09:00:00` sin zona, que el API toma como hora de Costa Rica. Para precargar un formulario: `toClinicIsoDate` y `toClinicTimeInput`.
 - "Hoy" es `todayInClinic()`, no la fecha del navegador.
+- Las etiquetas para la interfaz ("Vie 13 nov", "10:15 – 11:00", "Noviembre 2026") y la aritmética sobre fechas "AAAA-MM-DD" (`addDays`, `startOfWeek`, `isoWeekday`, `ageFromBirthDate`) están en `src/utils/dateLabels.js`, construidas sobre `clinicTime.js`.
 - Nunca `new Date('2026-11-20')` (lo toma como medianoche UTC, que en Costa Rica es el día anterior) ni `getHours()`/`getDate()` sobre fechas del API.
 - Si se toca este archivo, correr `npm test` (y en Linux o Docker con otra `TZ`, por ejemplo `TZ=Asia/Tokyo`; Node en Windows ignora `TZ`).
 

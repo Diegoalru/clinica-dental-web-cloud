@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router'
+import LoadingState from '@/components/ui/LoadingState'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -15,7 +16,7 @@ function ProtectedRoute({ roles }) {
   const location = useLocation()
 
   if (isLoading) {
-    return <p className="px-4 py-16 text-center text-slate-500">Cargando…</p>
+    return <LoadingState />
   }
 
   if (!isAuthenticated) {
