@@ -56,7 +56,7 @@ Patrón del módulo `auth`, a repetir en los demás:
 
 ### Variables de entorno
 
-Configuración por variables de entorno (Twelve-Factor); ver `.env.example`. **El prefijo es `API_`, no `VITE_`**: `vite.config.js` define `envPrefix: 'API_'`, así que solo las variables `API_*` llegan al cliente (`API_BASE_URL`, `API_TIMEOUT`) y cualquier variable `VITE_*` se ignora. Se leen únicamente en `src/config/env.js`. `.env` y `.env.*` están en `.gitignore` (excepto `.env.example`).
+Configuración por variables de entorno (Twelve-Factor); ver `.env.example`. **El prefijo es `API_`, no `VITE_`**: `vite.config.js` define `envPrefix: 'API_'`, así que solo las variables `API_*` llegan al cliente (`API_BASE_URL`, `API_TIMEOUT`) y cualquier variable `VITE_*` se ignora. Se leen únicamente en `src/config/env.js`, que no tiene valores por defecto: si falta una variable, la aplicación lanza un error al cargar. En local los valores van en `.env` (copia de `.env.example`); en el despliegue se definen en el paso de build del pipeline, porque Vite las incrusta al compilar. `.env` y `.env.*` están en `.gitignore` (excepto `.env.example`).
 
 ## Convenciones del equipo (del PDF de propuesta)
 
