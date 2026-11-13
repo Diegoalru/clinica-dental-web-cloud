@@ -15,10 +15,15 @@ npm install
 npm run dev       # servidor de desarrollo (Vite)
 npm run build     # build de producción a dist/
 npm run lint      # oxlint (no ESLint)
+npm test          # pruebas con el runner nativo de Node (archivos *.test.js), sin dependencias extra
 npm run preview   # sirve el build
+
+# Imagen Docker (nginx sin privilegios en el puerto 8080). API_BASE_URL es obligatorio: Vite lo incrusta al compilar
+docker build --build-arg API_BASE_URL=http://localhost:5125/api/v1 -t clinica-dental-web .
+docker run --rm -p 3000:8080 clinica-dental-web
 ```
 
-No hay framework de pruebas configurado todavía.
+Las pruebas no usan Vitest: `node --test` alcanza para utilidades puras (`src/utils/clinicTime.test.js`). El entorno completo (base, API y web) se levanta con el `docker-compose.yml` del workspace.
 
 ## Arquitectura
 
@@ -53,6 +58,16 @@ Patrón del módulo `auth`, a repetir en los demás:
 - Las reglas de React Hook Form van aparte (`features/auth/validation/authRules.js`) y repiten las del API.
 - `utils/formErrors.js` (`applyApiErrors`) reparte un `ApiError` entre los campos y devuelve el mensaje general.
 - `components/ui/FormField.jsx` es el campo base (etiqueta, input, error). Las páginas y este componente tienen estilos mínimos a propósito: el diseño lo trabaja otro integrante y no debe tener que tocar hooks ni servicios.
+
+### Fechas y horas
+
+La clínica trabaja en hora de Costa Rica y el navegador del usuario puede estar en otra zona. Todo pasa por `src/utils/clinicTime.js`:
+
+- El API responde las fechas con desfase (`2026-11-20T09:00:00-06:00`). Para mostrarlas: `formatClinicDateTime`, `formatClinicDate`, `formatClinicTime`. Para agrupar o comparar: `getClinicParts` y `toClinicIsoDate`.
+- Para enviar: `toApiDateTime(fecha, hora)` arma `2026-11-20T09:00:00` sin zona, que el API toma como hora de Costa Rica. Para precargar un formulario: `toClinicIsoDate` y `toClinicTimeInput`.
+- "Hoy" es `todayInClinic()`, no la fecha del navegador.
+- Nunca `new Date('2026-11-20')` (lo toma como medianoche UTC, que en Costa Rica es el día anterior) ni `getHours()`/`getDate()` sobre fechas del API.
+- Si se toca este archivo, correr `npm test` (y en Linux o Docker con otra `TZ`, por ejemplo `TZ=Asia/Tokyo`; Node en Windows ignora `TZ`).
 
 ### Variables de entorno
 

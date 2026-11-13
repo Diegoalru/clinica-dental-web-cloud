@@ -2,6 +2,8 @@
 // Son las mismas del API (DTOs/Auth/ValidationPatterns.cs, LoginRequest.cs y RegisterPatientRequest.cs).
 // Si cambian allá, hay que cambiarlas aquí; el API siempre vuelve a validar.
 
+import { todayInClinic } from '@/utils/clinicTime'
+
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 // 8 a 72 caracteres, con al menos una letra y un número
 const PASSWORD_PATTERN = /^(?=.*[A-Za-zÁÉÍÓÚÑáéíóúñ])(?=.*\d).{8,72}$/
@@ -58,7 +60,8 @@ export const registerRules = {
   },
   birthDate: {
     // El <input type="date"> entrega "AAAA-MM-DD", que se puede comparar como texto
-    validate: (value) => !value || value <= todayIsoDate() || 'La fecha de nacimiento no puede estar en el futuro.',
+    // "Hoy" es el día de Costa Rica, no el del navegador (el API compara con su propia fecha)
+    validate: (value) => !value || value <= todayInClinic() || 'La fecha de nacimiento no puede estar en el futuro.',
   },
   emergencyContact: {
     maxLength: { value: 200, message: 'El contacto de emergencia no puede superar los 200 caracteres.' },
@@ -66,11 +69,4 @@ export const registerRules = {
   acceptsDataConsent: {
     required: 'Debe aceptar el tratamiento de sus datos personales.',
   },
-}
-
-function todayIsoDate() {
-  const now = new Date()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `${now.getFullYear()}-${month}-${day}`
 }
