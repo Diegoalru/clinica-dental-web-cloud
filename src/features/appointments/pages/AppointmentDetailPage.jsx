@@ -6,10 +6,9 @@ import Alert from '@/components/ui/Alert'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import EmptyState from '@/components/ui/EmptyState'
-import FormField from '@/components/ui/FormField'
+import LoadingState from '@/components/ui/LoadingState'
 import Modal from '@/components/ui/Modal'
 import PageHeader from '@/components/ui/PageHeader'
-import Select from '@/components/ui/Select'
 import StatusBadge from '@/components/ui/StatusBadge'
 import Tabs from '@/components/ui/Tabs'
 import Textarea from '@/components/ui/Textarea'
@@ -17,21 +16,16 @@ import { APPOINTMENT_STATUS, NOTIFICATION_TYPE_LABELS } from '@/constants/appoin
 import { ROUTES } from '@/constants/routes'
 import { formatCurrency, formatDuration } from '@/utils/formatCurrency'
 import { formatDateTimeLog, formatDayMonthYear, formatShortDate, formatTime24, formatTimeRange } from '@/utils/dateLabels'
-import { dentistsForService } from '@/features/dentists/mocks/dentists'
 import AppointmentLogTimeline from '../components/AppointmentLogTimeline'
-import SlotPicker from '../components/SlotPicker'
-import {
-  appointmentLogs,
-  appointmentNotifications,
-  appointmentsByPatient,
-  findAppointment,
-  getAvailability,
-} from '../mocks/appointments'
+import { useAppointmentDetail } from '../hooks/useAppointmentDetail'
+import { hasStarted } from '../utils/appointmentMapper'
 
 const TABS = [
   { value: 'logs', label: 'Bitácora' },
   { value: 'history', label: 'Historial del paciente' },
 ]
+
+const OPEN_STATUSES = [APPOINTMENT_STATUS.PENDING, APPOINTMENT_STATUS.CONFIRMED]
 
 function Field({ label, value }) {
   return (
@@ -42,30 +36,34 @@ function Field({ label, value }) {
   )
 }
 
-/** Detalle de cita (recepción): datos, reprogramar, cancelar, notificaciones y bitácora. */
+/** Detalle de cita (recepción): datos, confirmar, cancelar, marcar que no asistió, notificaciones y bitácora. */
 function AppointmentDetailPage() {
   const { id } = useParams()
-  // TODO(api): appointmentsService.get(id)
-  const appointment = findAppointment(id)
+  const detail = useAppointmentDetail(id)
+  const { appointment, history } = detail
 
-  const [rescheduleOpen, setRescheduleOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [tab, setTab] = useState('logs')
-  const [newDate, setNewDate] = useState(appointment?.date ?? '')
-  const [newDentistId, setNewDentistId] = useState(appointment ? String(appointment.dentist.id) : '')
-  const [newTime, setNewTime] = useState(null)
-  const [reason, setReason] = useState('')
   const [cancelReason, setCancelReason] = useState('')
   const [cancelError, setCancelError] = useState(null)
   const [message, setMessage] = useState(null)
 
+  if (detail.isLoading) {
+    return (
+      <PageContainer>
+        <LoadingState label="Cargando la cita…" />
+      </PageContainer>
+    )
+  }
+
   if (!appointment) {
     return (
       <PageContainer>
+        {detail.error && <Alert tone="error">{detail.error}</Alert>}
         <EmptyState
           icon="calendar"
           title="Cita no encontrada"
-          description={`No existe la cita #${id}.`}
+          description={detail.notFound ? `No existe la cita #${id}.` : 'No se pudo cargar la cita.'}
           action={
             <Button as={Link} to={ROUTES.RECEPTION_AGENDA} variant="secondary" icon="arrow-left">
               Volver a la agenda
@@ -76,27 +74,23 @@ function AppointmentDetailPage() {
     )
   }
 
-  const { patient, dentist, service } = appointment
-  const logs = appointmentLogs[appointment.id] ?? []
-  const notifications = appointmentNotifications[appointment.id] ?? []
-  const history = appointmentsByPatient(patient.id).filter((item) => item.id !== appointment.id)
-  const isOpen = [APPOINTMENT_STATUS.PENDING, APPOINTMENT_STATUS.CONFIRMED].includes(appointment.status)
-  const slots = newDentistId && newDate ? getAvailability(newDentistId, newDate) : []
+  const { patient, dentist, service, logs, notifications } = appointment
+  const isOpen = OPEN_STATUSES.includes(appointment.status)
+  const started = hasStarted(appointment)
 
-  const confirmCancel = () => {
+  const run = async (action, successMessage) => {
+    setMessage(null)
+    if (await action()) setMessage(successMessage)
+  }
+
+  const confirmCancel = async () => {
     if (!cancelReason.trim()) {
       setCancelError('Indique el motivo de la cancelación.')
       return
     }
-    // TODO(api): appointmentsService.cancel(appointment.id, cancelReason)
     setCancelOpen(false)
-    setMessage('Cita cancelada. Se envió el correo de cancelación y se registró en la bitácora.')
-  }
-
-  const saveReschedule = () => {
-    // TODO(api): appointmentsService.reschedule(appointment.id, { date: newDate, time: newTime, dentistId: newDentistId, remarks: reason })
-    setRescheduleOpen(false)
-    setMessage('Cambio guardado. El recordatorio pendiente se reprogramó y se envió un nuevo correo de confirmación.')
+    await run(() => detail.cancel(cancelReason.trim()), 'Cita cancelada. El espacio quedó libre y se registró en la bitácora.')
+    setCancelReason('')
   }
 
   return (
@@ -113,18 +107,25 @@ function AppointmentDetailPage() {
         actions={
           isOpen && (
             <>
-              {appointment.status === APPOINTMENT_STATUS.PENDING && (
-                // TODO(api): appointmentsService.confirm(appointment.id)
-                <Button icon="check" onClick={() => setMessage('Cita confirmada.')}>
+              {appointment.status === APPOINTMENT_STATUS.PENDING && !started && (
+                <Button icon="check" loading={detail.isSaving} onClick={() => run(detail.confirm, 'Cita confirmada.')}>
                   Confirmar
                 </Button>
               )}
-              <Button variant="secondary" icon="refresh" onClick={() => setRescheduleOpen((open) => !open)}>
-                Reprogramar
-              </Button>
-              <Button variant="danger-outline" icon="x" onClick={() => setCancelOpen(true)}>
-                Cancelar cita
-              </Button>
+              {started ? (
+                <Button
+                  variant="secondary"
+                  icon="x"
+                  loading={detail.isSaving}
+                  onClick={() => run(detail.markNoShow, 'Se registró que el paciente no asistió.')}
+                >
+                  No asistió
+                </Button>
+              ) : (
+                <Button variant="danger-outline" icon="x" disabled={detail.isSaving} onClick={() => setCancelOpen(true)}>
+                  Cancelar cita
+                </Button>
+              )}
             </>
           )
         }
@@ -133,6 +134,11 @@ function AppointmentDetailPage() {
       {message && (
         <Alert tone="success" onClose={() => setMessage(null)}>
           {message}
+        </Alert>
+      )}
+      {detail.error && (
+        <Alert tone="error" title="No se pudo guardar el cambio" onClose={detail.clearError}>
+          {detail.error}
         </Alert>
       )}
 
@@ -146,55 +152,8 @@ function AppointmentDetailPage() {
               <Field label="Precio de referencia" value={formatCurrency(appointment.priceSnapshot)} />
               <Field label="Paciente" value={`Céd. ${patient.identification}`} />
               <Field label="Contacto" value={patient.phone} />
-              {appointment.notes && <Field label="Observaciones" value={appointment.notes} />}
             </dl>
           </Card>
-
-          {rescheduleOpen && (
-            <Card title="Reprogramar" description="Elija la nueva fecha, el odontólogo y un horario libre.">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <FormField
-                  label="Nueva fecha"
-                  type="date"
-                  value={newDate}
-                  onChange={(event) => {
-                    setNewDate(event.target.value)
-                    setNewTime(null)
-                  }}
-                />
-                <Select
-                  label="Odontólogo"
-                  value={newDentistId}
-                  onChange={(event) => {
-                    setNewDentistId(event.target.value)
-                    setNewTime(null)
-                  }}
-                  options={dentistsForService(service.id).map((item) => ({ value: item.id, label: item.displayName }))}
-                />
-              </div>
-              <div className="mt-4">
-                <SlotPicker slots={slots} value={newTime} onChange={setNewTime} columns={5} />
-              </div>
-              <Textarea
-                label="Motivo del cambio"
-                className="mt-4"
-                rows={2}
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-              />
-              <p className="mt-3 text-xs text-slate-500">
-                El recordatorio pendiente se reprograma y se envía un nuevo correo de confirmación.
-              </p>
-              <div className="mt-4 flex flex-wrap justify-end gap-2">
-                <Button variant="secondary" onClick={() => setRescheduleOpen(false)}>
-                  Descartar
-                </Button>
-                <Button icon="check" disabled={!newTime} onClick={saveReschedule}>
-                  Guardar cambio
-                </Button>
-              </div>
-            </Card>
-          )}
 
           <Card padding={false} title={tab === 'logs' ? 'Bitácora' : 'Historial del paciente'} actions={<Tabs variant="pills" items={TABS} value={tab} onChange={setTab} label="Sección" />}>
             <div className="p-5">
@@ -229,15 +188,7 @@ function AppointmentDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <Card
-            title="Notificaciones"
-            actions={
-              // TODO(api): appointmentsService.resendConfirmation(appointment.id)
-              <Button variant="secondary" size="sm" icon="send" onClick={() => setMessage('Confirmación reenviada.')}>
-                Reenviar confirmación
-              </Button>
-            }
-          >
+          <Card title="Notificaciones">
             {notifications.length === 0 ? (
               <p className="text-sm text-slate-500">Sin notificaciones registradas.</p>
             ) : (
@@ -245,7 +196,7 @@ function AppointmentDetailPage() {
                 {notifications.map((notification) => (
                   <li key={notification.id} className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium text-slate-900">{NOTIFICATION_TYPE_LABELS[notification.type]}</p>
+                      <p className="text-sm font-medium text-slate-900">{NOTIFICATION_TYPE_LABELS[notification.type] ?? notification.type}</p>
                       <p className="text-xs text-slate-500">
                         {notification.sentAt
                           ? `Correo · ${formatDateTimeLog(notification.sentAt)}`
@@ -288,7 +239,7 @@ function AppointmentDetailPage() {
       >
         <p className="text-sm text-slate-700">
           ¿Cancelar la cita de <strong>{patient.fullName}</strong> del {formatShortDate(appointment.startsAt)} a las{' '}
-          {formatTime24(appointment.startsAt)}? El espacio quedará libre y se enviará un correo de cancelación.
+          {formatTime24(appointment.startsAt)}? El espacio quedará libre para otro paciente.
         </p>
         <Textarea
           label="Motivo de cancelación *"

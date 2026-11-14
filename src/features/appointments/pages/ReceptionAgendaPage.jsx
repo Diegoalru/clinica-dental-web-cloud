@@ -12,7 +12,7 @@ import SearchInput from '@/components/ui/SearchInput'
 import Select from '@/components/ui/Select'
 import Stat from '@/components/ui/Stat'
 import { APPOINTMENT_STATUS, APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_TONES } from '@/constants/appointmentStatus'
-import { ROUTES } from '@/constants/routes'
+import { ROUTES, receptionAppointmentRoute } from '@/constants/routes'
 import { dentistsService } from '@/features/dentists/services/dentistsService'
 import { todayInClinic } from '@/utils/clinicTime'
 import { addDays, formatIsoDateLong, formatTime24 } from '@/utils/dateLabels'
@@ -158,9 +158,14 @@ function ReceptionAgendaPage() {
                 <ul className="mt-2 space-y-2">
                   {pending.length === 0 && <li className="text-sm text-slate-500">Nada pendiente.</li>}
                   {pending.map((item) => (
-                    <li key={item.id} className="rounded-lg border border-slate-200 px-3 py-2">
-                      <p className="truncate text-sm font-medium text-slate-900">{item.patient.fullName} · #{item.id}</p>
-                      <p className="text-xs text-slate-500">{formatTime24(item.startsAt)} · {item.dentist.displayName}</p>
+                    <li key={item.id}>
+                      <Link
+                        to={receptionAppointmentRoute(item.id)}
+                        className="block rounded-lg border border-slate-200 px-3 py-2 transition hover:border-brand-300 hover:bg-brand-50/50"
+                      >
+                        <p className="truncate text-sm font-medium text-slate-900">{item.patient.fullName} · #{item.id}</p>
+                        <p className="text-xs text-slate-500">{formatTime24(item.startsAt)} · {item.dentist.displayName}</p>
+                      </Link>
                     </li>
                   ))}
                 </ul>
