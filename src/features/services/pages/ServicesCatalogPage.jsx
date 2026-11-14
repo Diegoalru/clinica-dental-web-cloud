@@ -3,15 +3,16 @@ import PageContainer from '@/components/common/PageContainer'
 import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
 import PageHeader from '@/components/ui/PageHeader'
-import { ENTITY_STATUS } from '@/constants/appointmentStatus'
+import Alert from '@/components/ui/Alert'
+import EmptyState from '@/components/ui/EmptyState'
+import LoadingState from '@/components/ui/LoadingState'
 import { ROUTES } from '@/constants/routes'
 import { formatCurrency, formatDuration } from '@/utils/formatCurrency'
-import { services } from '../mocks/services'
+import { useServicesCatalog } from '../hooks/useServicesCatalog'
 
-/** Catálogo de servicios para el paciente (solo activos). */
+/** Catálogo de servicios para el paciente (solo activos). La lógica está en useServicesCatalog. */
 function ServicesCatalogPage() {
-  // TODO(api): servicesService.list({ status: 'ACTIVE' })
-  const active = services.filter((service) => service.status === ENTITY_STATUS.ACTIVE)
+  const { services: active, isLoading, error } = useServicesCatalog()
 
   return (
     <PageContainer>
@@ -25,6 +26,12 @@ function ServicesCatalogPage() {
           </Button>
         }
       />
+
+      {error && <Alert tone="error" title="No se pudo cargar el catálogo">{error}</Alert>}
+      {isLoading && <LoadingState label="Cargando servicios…" />}
+      {!isLoading && !error && active.length === 0 && (
+        <EmptyState icon="tooth" title="No hay servicios disponibles" description="Vuelva a intentarlo más tarde." />
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {active.map((service) => (
