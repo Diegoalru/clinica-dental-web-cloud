@@ -7,8 +7,9 @@ import StatusBadge from '@/components/ui/StatusBadge'
 import { ROLE_TONES } from '@/constants/navigation'
 import { ROLE_LABELS, ROLES } from '@/constants/roles'
 import { useAuth } from '@/hooks/useAuth'
+import LoadingState from '@/components/ui/LoadingState'
 import { formatClinicDate, formatClinicDateTime } from '@/utils/clinicTime'
-import { findPatient } from '../mocks/patients'
+import { usePatientProfile } from '../hooks/usePatientProfile'
 
 function Field({ label, value }) {
   return (
@@ -22,8 +23,7 @@ function Field({ label, value }) {
 /** Mi perfil: datos de la sesión (GET /auth/me) y, para pacientes, los datos del registro clínico. */
 function PatientProfilePage() {
   const { user } = useAuth()
-  // TODO(api): patientsService.me(). El mock usa el paciente 1 de ejemplo.
-  const patient = user.role === ROLES.PATIENT ? findPatient(user.patientId ?? 1) : null
+  const { patient, isLoading, error } = usePatientProfile(user.role === ROLES.PATIENT)
 
   return (
     <PageContainer narrow>
@@ -41,6 +41,9 @@ function PatientProfilePage() {
           </div>
         </dl>
       </Card>
+
+      {isLoading && <LoadingState label="Cargando sus datos…" />}
+      {error && <Alert tone="error" title="No se pudieron cargar sus datos">{error}</Alert>}
 
       {patient && (
         <Card
