@@ -62,8 +62,11 @@ export function useAppointmentDetail(id) {
     error,
     isSaving,
     clearError: () => setError(null),
+    setExternalError: setError,
     confirm: () => changeStatus(() => appointmentsService.confirm(id)),
     cancel: (remarks) => changeStatus(() => appointmentsService.cancel(id, remarks)),
     markNoShow: () => changeStatus(() => appointmentsService.markNoShow(id)),
+    reschedule: (form) => changeStatus(() => appointmentsService.reschedule(id, form)),
+    resendConfirmation: () => changeStatus(() => appointmentsService.resendConfirmation(id)),
   }
 }
