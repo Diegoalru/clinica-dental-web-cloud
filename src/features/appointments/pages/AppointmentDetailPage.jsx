@@ -23,6 +23,7 @@ import { formatDateTimeLog, formatDayMonthYear, formatShortDate, formatTime24, f
 import AppointmentLogTimeline from '../components/AppointmentLogTimeline'
 import SlotPicker from '../components/SlotPicker'
 import { useAppointmentDetail } from '../hooks/useAppointmentDetail'
+import { appointmentsService } from '../services/appointmentsService'
 import { hasStarted } from '../utils/appointmentMapper'
 
 const TABS = [
@@ -52,6 +53,7 @@ function AppointmentDetailPage() {
   const [cancelReason, setCancelReason] = useState('')
   const [cancelError, setCancelError] = useState(null)
   const [message, setMessage] = useState(null)
+  const [now] = useState(() => new Date())
   const [rescheduleOpen, setRescheduleOpen] = useState(false)
   const [newDate, setNewDate] = useState('')
   const [newDentistId, setNewDentistId] = useState('')
@@ -110,7 +112,7 @@ function AppointmentDetailPage() {
 
   const { patient, dentist, service, logs, notifications } = appointment
   const isOpen = OPEN_STATUSES.includes(appointment.status)
-  const started = hasStarted(appointment)
+  const started = hasStarted(appointment, now)
 
   const run = async (action, successMessage) => {
     setMessage(null)

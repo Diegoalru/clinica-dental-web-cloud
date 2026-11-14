@@ -3,11 +3,13 @@ import Alert from '@/components/ui/Alert'
 import Button from '@/components/ui/Button'
 import FormField from '@/components/ui/FormField'
 import { ROUTES } from '@/constants/routes'
+import { useAuth } from '@/hooks/useAuth'
 import { useLoginForm } from '../hooks/useLoginForm'
 
 // Interfaz del inicio de sesión: toda la lógica está en useLoginForm.
 function LoginPage() {
   const { field, errors, isSubmitting, formError, onSubmit } = useLoginForm()
+  const { sessionExpired } = useAuth()
 
   return (
     <section>
@@ -17,6 +19,7 @@ function LoginPage() {
       {/* noValidate: valida React Hook Form, no el navegador, para que los mensajes sean los nuestros */}
       <form onSubmit={onSubmit} noValidate className="mt-8 space-y-5">
         {formError && <Alert tone="error">{formError}</Alert>}
+        {sessionExpired && !formError && <Alert tone="warning">Su sesión venció. Inicie sesión de nuevo.</Alert>}
 
         <FormField
           label="Correo electrónico"

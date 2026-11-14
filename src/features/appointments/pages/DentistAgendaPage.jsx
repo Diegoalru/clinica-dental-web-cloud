@@ -14,6 +14,7 @@ import { parseClinicDate, todayInClinic } from '@/utils/clinicTime'
 import { addDays, formatIsoDateShort, formatTime24, formatTimeRange, isoWeekday } from '@/utils/dateLabels'
 import WeekStrip from '../components/WeekStrip'
 import { useDentistAgenda } from '../hooks/useDentistAgenda'
+import { hasStarted } from '../utils/appointmentMapper'
 
 const OPEN_STATUSES = [APPOINTMENT_STATUS.PENDING, APPOINTMENT_STATUS.CONFIRMED]
 
@@ -32,6 +33,7 @@ function DentistAgendaPage() {
   const today = todayInClinic()
   const [date, setDate] = useState(today)
   const [message, setMessage] = useState(state?.message ?? null)
+  const [now] = useState(() => new Date())
   const { dentist, appointments: all, isLoading, error } = useDentistAgenda(date)
 
   if (!dentist) {
@@ -44,7 +46,8 @@ function DentistAgendaPage() {
 
   const dayItems = all.filter((item) => item.date === date).sort((a, b) => parseClinicDate(a.startsAt) - parseClinicDate(b.startsAt))
   const blocks = dentist.blocks.filter((block) => overlapsDay(block, date))
-  const nextId = dayItems.find((item) => OPEN_STATUSES.includes(item.status))?.id
+  // "Siguiente": la primera cita abierta que todavía no empieza
+  const nextId = dayItems.find((item) => OPEN_STATUSES.includes(item.status) && !hasStarted(item, now))?.id
 
   const timeline = [
     ...dayItems.map((item) => ({ kind: 'appointment', startsAt: item.startsAt, item })),

@@ -12,7 +12,7 @@ import Table, { Td, Th } from '@/components/ui/Table'
 import Tabs from '@/components/ui/Tabs'
 import { APPOINTMENT_STATUS, APPOINTMENT_STATUS_LABELS } from '@/constants/appointmentStatus'
 import { ROUTES } from '@/constants/routes'
-import { todayInClinic } from '@/utils/clinicTime'
+import { parseClinicDate } from '@/utils/clinicTime'
 import { formatDayMonthYear, formatTime24 } from '@/utils/dateLabels'
 import AppointmentCard from '../components/AppointmentCard'
 import { appointmentsService } from '../services/appointmentsService'
@@ -31,6 +31,8 @@ function MyAppointmentsPage() {
   const location = useLocation()
   const [showCreated, setShowCreated] = useState(Boolean(location.state?.created))
   const [filter, setFilter] = useState('ALL')
+  // La hora se toma al cargar las citas (un render no debe leer el reloj); al volver a la pestaña se renueva
+  const [now, setNow] = useState(() => new Date())
   const [appointments, setAppointments] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -42,6 +44,7 @@ function MyAppointmentsPage() {
       .then((items) => {
         if (!controller.signal.aborted) {
           setAppointments(items.map(toDisplayAppointment))
+          setNow(new Date())
           setError(null)
         }
       })
@@ -60,12 +63,13 @@ function MyAppointmentsPage() {
     return () => window.removeEventListener('focus', refresh)
   }, [])
 
-  const today = todayInClinic()
+  // Próxima: abierta y que todavía no termina (compara instantes, no solo la fecha)
+  const isUpcoming = (item) => UPCOMING_STATUSES.includes(item.status) && parseClinicDate(item.endsAt) > now
   const upcoming = appointments
-    .filter((item) => UPCOMING_STATUSES.includes(item.status) && item.date >= today)
+    .filter(isUpcoming)
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
   const history = appointments
-    .filter((item) => !UPCOMING_STATUSES.includes(item.status) || item.date < today)
+    .filter((item) => !isUpcoming(item))
     .filter((item) => filter === 'ALL' || item.status === filter)
     .sort((a, b) => b.startsAt.localeCompare(a.startsAt))
 

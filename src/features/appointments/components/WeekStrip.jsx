@@ -11,7 +11,8 @@ function WeekStrip({ value, today, onChange, countFor }) {
   const days = Array.from({ length: 7 }, (_, index) => addDays(monday, index))
 
   return (
-    <div className="flex items-center gap-2">
+    // En móvil los botones van arriba y los 7 días ocupan una fila completa abajo
+    <div className="flex flex-wrap items-center gap-2">
       <Button variant="secondary" size="icon-sm" onClick={() => onChange(addDays(value, -7))} aria-label="Semana anterior">
         <Icon name="chevron-left" size={16} />
       </Button>
@@ -21,7 +22,7 @@ function WeekStrip({ value, today, onChange, countFor }) {
       <Button variant="secondary" size="icon-sm" onClick={() => onChange(addDays(value, 7))} aria-label="Semana siguiente">
         <Icon name="chevron-right" size={16} />
       </Button>
-      <div className="ml-2 grid flex-1 grid-cols-7 gap-1">
+      <div className="grid min-w-0 basis-full grid-cols-7 gap-1 sm:ml-2 sm:flex-1 sm:basis-0">
         {days.map((iso, index) => {
           const selected = iso === value
           const isToday = iso === today
