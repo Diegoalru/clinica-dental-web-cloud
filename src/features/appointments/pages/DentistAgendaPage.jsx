@@ -1,52 +1,55 @@
-import { useMemo, useState } from 'react'
-import { Link, useLocation } from 'react-router'
+import { useState } from 'react'
+import { useLocation } from 'react-router'
 import PageContainer from '@/components/common/PageContainer'
 import Alert from '@/components/ui/Alert'
-import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import EmptyState from '@/components/ui/EmptyState'
+import LoadingState from '@/components/ui/LoadingState'
 import PageHeader from '@/components/ui/PageHeader'
 import Stat from '@/components/ui/Stat'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { APPOINTMENT_STATUS } from '@/constants/appointmentStatus'
-import { dentistAttentionRoute } from '@/constants/routes'
-import { useAuth } from '@/hooks/useAuth'
 import { formatDuration } from '@/utils/formatCurrency'
-import { formatIsoDateShort, formatTime24, formatTimeRange, isoWeekday } from '@/utils/dateLabels'
-import { findDentist } from '@/features/dentists/mocks/dentists'
+import { parseClinicDate, todayInClinic } from '@/utils/clinicTime'
+import { addDays, formatIsoDateShort, formatTime24, formatTimeRange, isoWeekday } from '@/utils/dateLabels'
 import WeekStrip from '../components/WeekStrip'
-import { MOCK_TODAY, appointmentsByDentist } from '../mocks/appointments'
+import { useDentistAgenda } from '../hooks/useDentistAgenda'
 
 const OPEN_STATUSES = [APPOINTMENT_STATUS.PENDING, APPOINTMENT_STATUS.CONFIRMED]
 
-const actionFor = (status) => {
-  if (status === APPOINTMENT_STATUS.COMPLETED) return { label: 'Ver expediente', icon: 'file-text', variant: 'secondary' }
-  if (status === APPOINTMENT_STATUS.NO_SHOW || status === APPOINTMENT_STATUS.CANCELLED) {
-    return { label: 'Ver detalle', icon: 'eye', variant: 'ghost' }
-  }
-  return { label: 'Abrir cita', icon: 'arrow-right', variant: 'primary' }
-}
+const minutesBetween = (start, end) => Math.round((parseClinicDate(end) - parseClinicDate(start)) / 60000)
 
-const minutesBetween = (start, end) => Math.round((new Date(end) - new Date(start)) / 60000)
+// Un bloqueo puede durar varios días (vacaciones): se muestra en cada día que toca
+const overlapsDay = (block, date) =>
+  parseClinicDate(block.startsAt) < parseClinicDate(addDays(date, 1)) && parseClinicDate(block.endsAt) > parseClinicDate(date)
+
+const coversWholeDay = (block, date) =>
+  parseClinicDate(block.startsAt) <= parseClinicDate(date) && parseClinicDate(block.endsAt) >= parseClinicDate(addDays(date, 1))
 
 /** Mi agenda (odontólogo): semana, indicadores y citas del día con bloqueos. */
 function DentistAgendaPage() {
-  const { user } = useAuth()
   const { state } = useLocation()
-  const [date, setDate] = useState(MOCK_TODAY)
+  const today = todayInClinic()
+  const [date, setDate] = useState(today)
   const [message, setMessage] = useState(state?.message ?? null)
+  const { dentist, appointments: all, isLoading, error } = useDentistAgenda(date)
 
-  // TODO(api): dentistsService.me() y appointmentsService.list({ dentistId, date }). El mock usa el odontólogo 1.
-  const dentist = findDentist(user.dentistId ?? 1)
-  const all = useMemo(() => appointmentsByDentist(dentist.id), [dentist.id])
-  const dayItems = all.filter((item) => item.date === date).sort((a, b) => (a.startsAt < b.startsAt ? -1 : 1))
-  const blocks = dentist.blocks.filter((block) => block.startsAt.startsWith(date))
+  if (!dentist) {
+    return (
+      <PageContainer>
+        {error ? <Alert tone="error" title="No se pudo cargar su agenda">{error}</Alert> : <LoadingState label="Cargando su agenda…" />}
+      </PageContainer>
+    )
+  }
+
+  const dayItems = all.filter((item) => item.date === date).sort((a, b) => parseClinicDate(a.startsAt) - parseClinicDate(b.startsAt))
+  const blocks = dentist.blocks.filter((block) => overlapsDay(block, date))
   const nextId = dayItems.find((item) => OPEN_STATUSES.includes(item.status))?.id
 
   const timeline = [
     ...dayItems.map((item) => ({ kind: 'appointment', startsAt: item.startsAt, item })),
     ...blocks.map((block) => ({ kind: 'block', startsAt: block.startsAt, item: block })),
-  ].sort((a, b) => (a.startsAt < b.startsAt ? -1 : 1))
+  ].sort((a, b) => parseClinicDate(a.startsAt) - parseClinicDate(b.startsAt))
 
   const schedule = dentist.schedules
     .filter((item) => item.dayOfWeek === isoWeekday(date))
@@ -76,9 +79,11 @@ function DentistAgendaPage() {
 
       <Card padding={false}>
         <div className="px-4 py-3">
-          <WeekStrip value={date} today={MOCK_TODAY} onChange={setDate} countFor={(iso) => all.filter((item) => item.date === iso).length} />
+          <WeekStrip value={date} today={today} onChange={setDate} countFor={(iso) => all.filter((item) => item.date === iso).length} />
         </div>
       </Card>
+
+      {error && <Alert tone="error">{error}</Alert>}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Citas hoy" value={dayItems.length} />
@@ -88,7 +93,9 @@ function DentistAgendaPage() {
       </div>
 
       <Card title="Citas del día" padding={false}>
-        {timeline.length === 0 ? (
+        {isLoading ? (
+          <LoadingState label="Cargando citas…" />
+        ) : timeline.length === 0 ? (
           <EmptyState icon="calendar" title="Sin citas este día" description="Elija otro día de la semana para ver sus citas." />
         ) : (
           <ul className="divide-y divide-slate-100">
@@ -96,11 +103,19 @@ function DentistAgendaPage() {
               entry.kind === 'block' ? (
                 <li key={`block-${entry.item.id}`} className="flex items-center gap-4 bg-stripes px-5 py-3 text-sm text-zinc-600">
                   <div className="w-16 shrink-0">
-                    <p className="font-semibold tabular-nums">{formatTime24(entry.item.startsAt)}</p>
-                    <p className="text-xs">{minutesBetween(entry.item.startsAt, entry.item.endsAt)} min</p>
+                    {coversWholeDay(entry.item, date) ? (
+                      <p className="font-semibold">Día</p>
+                    ) : (
+                      <>
+                        <p className="font-semibold tabular-nums">{formatTime24(entry.item.startsAt)}</p>
+                        <p className="text-xs">{minutesBetween(entry.item.startsAt, entry.item.endsAt)} min</p>
+                      </>
+                    )}
                   </div>
-                  <p className="font-medium">Bloqueo · {entry.item.reason}</p>
-                  <p className="ml-auto text-xs tabular-nums">{formatTimeRange(entry.item.startsAt, entry.item.endsAt)}</p>
+                  <p className="font-medium">Bloqueo · {entry.item.reason ?? 'Sin atención'}</p>
+                  <p className="ml-auto text-xs tabular-nums">
+                    {coversWholeDay(entry.item, date) ? 'Todo el día' : formatTimeRange(entry.item.startsAt, entry.item.endsAt)}
+                  </p>
                 </li>
               ) : (
                 <li
@@ -126,14 +141,6 @@ function DentistAgendaPage() {
                     </p>
                   </div>
                   <StatusBadge status={entry.item.status} />
-                  {(() => {
-                    const action = actionFor(entry.item.status)
-                    return (
-                      <Button as={Link} to={dentistAttentionRoute(entry.item.id)} variant={action.variant} size="sm" icon={action.icon}>
-                        {action.label}
-                      </Button>
-                    )
-                  })()}
                 </li>
               ),
             )}
