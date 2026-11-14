@@ -4,9 +4,8 @@ import { toApiDateTime } from '@/utils/clinicTime'
 const appointmentsApi = new ApiService('/appointments')
 
 /**
- * Llamadas al API de citas. ESQUELETO: las páginas todavía usan features/appointments/mocks/;
- * cada hook tiene un `TODO(api)` que indica qué método conectar. Los endpoints son los previstos
- * en la propuesta; ajustar las rutas cuando el API los publique.
+ * Llamadas al API de citas. El flujo de reserva del paciente usa los endpoints reales;
+ * otras vistas del módulo todavía tienen datos de maqueta.
  */
 export const appointmentsService = {
   /** GET /appointments?date=&dentistId=&patientId=&status= */
