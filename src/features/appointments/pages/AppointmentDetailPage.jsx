@@ -47,6 +47,7 @@ function AppointmentDetailPage() {
   const [cancelReason, setCancelReason] = useState('')
   const [cancelError, setCancelError] = useState(null)
   const [message, setMessage] = useState(null)
+  const [now] = useState(() => new Date())
 
   if (detail.isLoading) {
     return (
@@ -76,7 +77,7 @@ function AppointmentDetailPage() {
 
   const { patient, dentist, service, logs, notifications } = appointment
   const isOpen = OPEN_STATUSES.includes(appointment.status)
-  const started = hasStarted(appointment)
+  const started = hasStarted(appointment, now)
 
   const run = async (action, successMessage) => {
     setMessage(null)

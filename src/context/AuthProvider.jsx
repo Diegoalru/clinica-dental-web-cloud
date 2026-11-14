@@ -38,14 +38,20 @@ export function AuthProvider({ children }) {
   }, [])
 
   // Si el API rechaza el token en cualquier solicitud posterior, se cierra la sesión en la interfaz
+  // y el login avisa que venció (sessionExpired)
+  const [sessionExpired, setSessionExpired] = useState(false)
   useEffect(() => {
-    setSessionExpiredHandler(() => setUser(null))
+    setSessionExpiredHandler(() => {
+      setUser(null)
+      setSessionExpired(true)
+    })
     return () => setSessionExpiredHandler(null)
   }, [])
 
   const startSession = useCallback((response) => {
     tokenStorage.set(response.accessToken)
     setUser(response.user)
+    setSessionExpired(false)
     return response.user
   }, [])
 
@@ -73,12 +79,13 @@ export function AuthProvider({ children }) {
       user,
       isAuthenticated: user !== null,
       isLoading,
+      sessionExpired,
       login,
       register,
       logout,
       hasRole,
     }),
-    [user, isLoading, login, register, logout, hasRole],
+    [user, isLoading, sessionExpired, login, register, logout, hasRole],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
