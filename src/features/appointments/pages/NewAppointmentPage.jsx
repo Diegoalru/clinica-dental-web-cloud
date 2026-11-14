@@ -1,22 +1,18 @@
-import { useState } from 'react'
 import { Link } from 'react-router'
 import Breadcrumb from '@/components/common/Breadcrumb'
 import PageContainer from '@/components/common/PageContainer'
 import Button from '@/components/ui/Button'
+import Alert from '@/components/ui/Alert'
 import Card from '@/components/ui/Card'
-import Checkbox from '@/components/ui/Checkbox'
 import FormField from '@/components/ui/FormField'
 import Icon from '@/components/ui/Icon'
 import PageHeader from '@/components/ui/PageHeader'
 import SearchInput from '@/components/ui/SearchInput'
 import Select from '@/components/ui/Select'
-import Textarea from '@/components/ui/Textarea'
 import { ROUTES } from '@/constants/routes'
 import { formatCurrency, formatDuration } from '@/utils/formatCurrency'
 import { formatIsoDateShort } from '@/utils/dateLabels'
 import { maskEmail } from '@/utils/privacy'
-import PatientFormModal from '@/features/patients/components/PatientFormModal'
-import AlternativeSlots from '../components/AlternativeSlots'
 import SlotPicker from '../components/SlotPicker'
 import { useReceptionBooking } from '../hooks/useReceptionBooking'
 
@@ -34,7 +30,6 @@ function StepTitle({ number, children }) {
 /** Nueva cita (recepción). */
 function NewAppointmentPage() {
   const booking = useReceptionBooking()
-  const [patientModalOpen, setPatientModalOpen] = useState(false)
 
   return (
     <PageContainer>
@@ -44,15 +39,7 @@ function NewAppointmentPage() {
         description="Agende una cita para un paciente registrado."
       />
 
-      {booking.conflict && (
-        <AlternativeSlots
-          tone="error"
-          title="Ese horario ya no está disponible"
-          description={`Otra persona reservó ${formatIsoDateShort(booking.date)} · ${booking.time ?? ''} con ${booking.dentist?.displayName ?? 'el odontólogo'} mientras completaba el formulario (validación en transacción). Elija otra opción:`}
-          slots={booking.conflict.slots}
-          onSelect={booking.applyAlternative}
-        />
-      )}
+      {booking.error && <Alert tone="error" title="No se pudo completar la reserva">{booking.error}</Alert>}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">
@@ -66,8 +53,7 @@ function NewAppointmentPage() {
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-slate-900">{booking.patient.fullName}</p>
                   <p className="text-xs text-slate-600">
-                    Céd. {booking.patient.identification} · {booking.patient.phone ?? '—'} · {maskEmail(booking.patient.email)} ·
-                    Consentimiento {booking.patient.dataConsentAt ? '✓' : 'pendiente'}
+                    Céd. {booking.patient.identification} · {booking.patient.phone ?? '—'} · {maskEmail(booking.patient.email)}
                   </p>
                 </div>
                 <Button variant="secondary" size="sm" onClick={booking.clearPatient}>
@@ -83,10 +69,11 @@ function NewAppointmentPage() {
                     placeholder="Buscar por nombre o identificación"
                     className="min-w-0 flex-1"
                   />
-                  <Button variant="secondary" icon="plus" onClick={() => setPatientModalOpen(true)}>
-                    Registrar paciente nuevo
-                  </Button>
                 </div>
+                {booking.isLoadingPatients && <p className="text-sm text-slate-500">Buscando pacientes…</p>}
+                {!booking.isLoadingPatients && booking.patientResults.length === 0 && (
+                  <p className="text-sm text-slate-500">No se encontraron pacientes registrados.</p>
+                )}
                 {booking.patientResults.length > 0 && (
                   <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
                     {booking.patientResults.map((patient) => (
@@ -115,7 +102,7 @@ function NewAppointmentPage() {
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
               <Select
                 label="Servicio"
-                placeholder="Seleccione un servicio"
+                placeholder={booking.isLoadingServices ? 'Cargando servicios…' : 'Seleccione un servicio'}
                 value={booking.serviceId}
                 onChange={(event) => booking.selectService(event.target.value)}
                 options={booking.services.map((service) => ({
@@ -127,7 +114,7 @@ function NewAppointmentPage() {
                 label="Odontólogo (habilitados)"
                 placeholder={booking.service ? 'Seleccione' : 'Primero el servicio'}
                 value={booking.dentistId}
-                disabled={!booking.service}
+                disabled={!booking.service || booking.isLoadingDentists}
                 onChange={(event) => booking.selectDentist(event.target.value)}
                 options={booking.dentists.map((dentist) => ({ value: dentist.id, label: dentist.displayName }))}
               />
@@ -136,6 +123,7 @@ function NewAppointmentPage() {
                 type="date"
                 value={booking.date}
                 onChange={(event) => booking.selectDate(event.target.value)}
+                min={booking.today}
               />
             </div>
           </Card>
@@ -148,11 +136,11 @@ function NewAppointmentPage() {
             <div className="mt-4">
               {booking.dentist ? (
                 <SlotPicker
-                  slots={booking.slots}
+                  slots={booking.isLoadingSlots ? [] : booking.slots}
                   value={booking.time}
                   onChange={booking.selectTime}
                   columns={5}
-                  emptyMessage="El odontólogo no atiende en la fecha elegida."
+                  emptyMessage={booking.isLoadingSlots ? 'Consultando horarios…' : 'No hay espacios para esta fecha.'}
                 />
               ) : (
                 <p className="rounded-lg bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
@@ -160,13 +148,6 @@ function NewAppointmentPage() {
                 </p>
               )}
             </div>
-            <Textarea
-              label="Observaciones (opcional)"
-              className="mt-4"
-              value={booking.notes}
-              onChange={(event) => booking.setNotes(event.target.value)}
-              rows={2}
-            />
           </Card>
         </div>
 
@@ -187,19 +168,6 @@ function NewAppointmentPage() {
               ))}
             </dl>
 
-            <div className="mt-5 space-y-3 border-t border-slate-100 pt-4">
-              <Checkbox
-                label="Enviar correo de confirmación"
-                checked={booking.sendConfirmation}
-                onChange={(event) => booking.setSendConfirmation(event.target.checked)}
-              />
-              <Checkbox
-                label="Programar recordatorio (24 h antes)"
-                checked={booking.scheduleReminder}
-                onChange={(event) => booking.setScheduleReminder(event.target.checked)}
-              />
-            </div>
-
             <p className="mt-4 text-xs text-slate-500">
               La cita se crea en estado <strong>Pendiente</strong> y se registra en la bitácora.
             </p>
@@ -211,21 +179,10 @@ function NewAppointmentPage() {
               <Button as={Link} to={ROUTES.RECEPTION_AGENDA} variant="secondary">
                 Cancelar
               </Button>
-              {booking.canSubmit && !booking.conflict && (
-                <Button variant="link" onClick={booking.simulateConflict} className="self-center text-xs text-slate-400">
-                  Simular conflicto de horario (demo)
-                </Button>
-              )}
             </div>
           </Card>
         </aside>
       </div>
-
-      <PatientFormModal
-        open={patientModalOpen}
-        onClose={() => setPatientModalOpen(false)}
-        onSaved={() => setPatientModalOpen(false)}
-      />
     </PageContainer>
   )
 }

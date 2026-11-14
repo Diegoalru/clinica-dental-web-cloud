@@ -1,7 +1,5 @@
-import { Link } from 'react-router'
 import { APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_TONES } from '@/constants/appointmentStatus'
 import { TONE_BLOCK_CLASSES } from '@/components/ui/tones'
-import { receptionAppointmentRoute } from '@/constants/routes'
 import { getClinicParts } from '@/utils/clinicTime'
 import { formatTimeRange } from '@/utils/dateLabels'
 
@@ -88,10 +86,9 @@ function AgendaGrid({ dentists, appointments, date }) {
               {items.map((appointment) => {
                 const tone = APPOINTMENT_STATUS_TONES[appointment.status]
                 return (
-                  <Link
+                  <div
                     key={appointment.id}
-                    to={receptionAppointmentRoute(appointment.id)}
-                    className={`absolute inset-x-1 overflow-hidden rounded-md border-l-4 px-2 py-1 text-xs shadow-xs transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-brand-600 ${TONE_BLOCK_CLASSES[tone]}`}
+                    className={`absolute inset-x-1 overflow-hidden rounded-md border-l-4 px-2 py-1 text-xs shadow-xs ${TONE_BLOCK_CLASSES[tone]}`}
                     style={blockStyle(appointment.startsAt, appointment.endsAt)}
                     title={`${appointment.patient.fullName} · ${appointment.service.name} · ${APPOINTMENT_STATUS_LABELS[appointment.status]}`}
                   >
@@ -99,7 +96,7 @@ function AgendaGrid({ dentists, appointments, date }) {
                     <p className="truncate">
                       {appointment.service.name.split(' ')[0]} · {APPOINTMENT_STATUS_LABELS[appointment.status]}
                     </p>
-                  </Link>
+                  </div>
                 )
               })}
             </div>

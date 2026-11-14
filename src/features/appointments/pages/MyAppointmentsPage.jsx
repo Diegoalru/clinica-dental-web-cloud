@@ -13,10 +13,11 @@ import Tabs from '@/components/ui/Tabs'
 import { APPOINTMENT_STATUS, APPOINTMENT_STATUS_LABELS } from '@/constants/appointmentStatus'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/hooks/useAuth'
-import { todayInClinic, toClinicIsoDate } from '@/utils/clinicTime'
+import { todayInClinic } from '@/utils/clinicTime'
 import { formatDayMonthYear, formatTime24 } from '@/utils/dateLabels'
 import AppointmentCard from '../components/AppointmentCard'
 import { appointmentsService } from '../services/appointmentsService'
+import { toDisplayAppointment } from '../utils/appointmentMapper'
 
 const HISTORY_FILTERS = [
   { value: 'ALL', label: 'Todos' },
@@ -26,29 +27,6 @@ const HISTORY_FILTERS = [
 ]
 
 const UPCOMING_STATUSES = [APPOINTMENT_STATUS.PENDING, APPOINTMENT_STATUS.CONFIRMED]
-
-function toDisplayAppointment(item) {
-  return {
-    ...item,
-    date: toClinicIsoDate(item.startsAt),
-    service: {
-      name: item.serviceName,
-      durationMinutes: Math.round((Date.parse(item.endsAt) - Date.parse(item.startsAt)) / 60000),
-    },
-    dentist: { displayName: item.dentistName },
-  }
-}
-
-async function getAllAppointments(patientId, signal) {
-  const items = []
-  let page = 1
-  while (true) {
-    const response = await appointmentsService.list({ patientId, page, pageSize: 100 }, { signal })
-    items.push(...response.items)
-    if (items.length >= response.totalCount) return items.map(toDisplayAppointment)
-    page += 1
-  }
-}
 
 function MyAppointmentsPage() {
   const { user } = useAuth()
@@ -62,9 +40,9 @@ function MyAppointmentsPage() {
 
   useEffect(() => {
     const controller = new AbortController()
-    getAllAppointments(user.patientId, controller.signal)
+    appointmentsService.listAll({ patientId: user.patientId }, { signal: controller.signal })
       .then((items) => {
-        if (!controller.signal.aborted) setAppointments(items)
+        if (!controller.signal.aborted) setAppointments(items.map(toDisplayAppointment))
       })
       .catch((failure) => {
         if (!controller.signal.aborted) setError(failure.message)
