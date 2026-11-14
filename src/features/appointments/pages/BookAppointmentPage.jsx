@@ -1,3 +1,4 @@
+import Alert from '@/components/ui/Alert'
 import PageContainer from '@/components/common/PageContainer'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
@@ -5,7 +6,6 @@ import PageHeader from '@/components/ui/PageHeader'
 import Stepper from '@/components/ui/Stepper'
 import { formatCurrency, formatDuration } from '@/utils/formatCurrency'
 import { formatIsoDateShort } from '@/utils/dateLabels'
-import AlternativeSlots from '../components/AlternativeSlots'
 import BookingSummary from '../components/BookingSummary'
 import DatePicker from '../components/DatePicker'
 import OptionCard from '../components/OptionCard'
@@ -44,6 +44,8 @@ function BookAppointmentPage() {
         description="Elija el servicio, el odontólogo y un horario disponible."
       />
 
+      {wizard.error && <Alert tone="error" title="No se pudo completar la reserva">{wizard.error}</Alert>}
+
       {/* Indicador de pasos: completo en escritorio, compacto en móvil */}
       <Card className="hidden md:block" padding={false}>
         <div className="px-5 py-4">
@@ -79,6 +81,7 @@ function BookAppointmentPage() {
         <div className="space-y-6">
           <Card title="1. Servicio" className={panel(1)}>
             <div className="space-y-2">
+              {wizard.isLoadingServices && <p className="text-sm text-slate-500">Cargando servicios…</p>}
               {wizard.services.map((service) => (
                 <OptionCard
                   key={service.id}
@@ -113,15 +116,9 @@ function BookAppointmentPage() {
                   round
                 />
               ))}
-              {wizard.service && (
-                <OptionCard
-                  selected={false}
-                  disabled
-                  title="Cualquier disponible"
-                  detail="Primer espacio libre (próximamente)"
-                  icon="clock"
-                  round
-                />
+              {wizard.isLoadingDentists && <p className="text-sm text-slate-500">Cargando odontólogos…</p>}
+              {wizard.service && !wizard.isLoadingDentists && wizard.dentists.length === 0 && (
+                <p className="text-sm text-slate-500">No hay odontólogos para este servicio.</p>
               )}
             </div>
           </Card>
@@ -138,17 +135,18 @@ function BookAppointmentPage() {
                 <DatePicker
                   value={wizard.date}
                   onChange={wizard.selectDate}
-                  isDayDisabled={wizard.isDayDisabled}
+                  minDate={wizard.today}
                 />
                 <div>
                   <p className="mb-3 text-sm font-semibold text-slate-900">
                     {formatIsoDateShort(wizard.date)} · {wizard.dentist.displayName}
                   </p>
+                  {wizard.isLoadingSlots && <p className="mb-3 text-sm text-slate-500">Consultando horarios…</p>}
                   <SlotPicker
-                    slots={wizard.slots}
+                    slots={wizard.isLoadingSlots ? [] : wizard.slots}
                     value={wizard.time}
                     onChange={wizard.selectTime}
-                    emptyMessage="El odontólogo no atiende este día."
+                    emptyMessage={wizard.isLoadingSlots ? 'Consultando horarios…' : 'No hay espacios para este día.'}
                   />
                   <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                     <span className="inline-flex items-center gap-1.5">
@@ -166,15 +164,6 @@ function BookAppointmentPage() {
                   </div>
                 </div>
               </div>
-
-              {wizard.slots.length === 0 && (
-                <AlternativeSlots
-                  title="No hay espacios para el día elegido"
-                  description="El sistema cruzó horario habitual, bloqueos y citas existentes. Horarios alternativos:"
-                  slots={wizard.alternatives}
-                  onSelect={wizard.selectAlternative}
-                />
-              )}
             </div>
           )}
         </Card>
@@ -188,7 +177,7 @@ function BookAppointmentPage() {
           <Button
             icon="check"
             onClick={wizard.confirm}
-            disabled={!wizard.time}
+            disabled={!wizard.time || wizard.isSubmitting}
             loading={wizard.isSubmitting}
             className="hidden md:inline-flex"
           >
@@ -221,7 +210,7 @@ function BookAppointmentPage() {
             Continuar
           </Button>
         ) : (
-          <Button icon="check" onClick={wizard.confirm} loading={wizard.isSubmitting}>
+          <Button icon="check" onClick={wizard.confirm} disabled={!wizard.time || wizard.isSubmitting} loading={wizard.isSubmitting}>
             Confirmar
           </Button>
         )}

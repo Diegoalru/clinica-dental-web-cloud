@@ -1,77 +1,161 @@
-import { useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router'
-import { ENTITY_STATUS } from '@/constants/appointmentStatus'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router'
 import { ROUTES } from '@/constants/routes'
+import { dentistsService } from '@/features/dentists/services/dentistsService'
+import { patientsService } from '@/features/patients/services/patientsService'
+import { servicesService } from '@/features/services/services/servicesService'
+import { todayInClinic } from '@/utils/clinicTime'
 import { addMinutes } from '@/utils/dateLabels'
-import { dentistsForService } from '@/features/dentists/mocks/dentists'
-import { findPatient, searchPatients } from '@/features/patients/mocks/patients'
-import { services } from '@/features/services/mocks/services'
-import { MOCK_TODAY, alternativeSlots, getAvailability } from '../mocks/appointments'
+import { appointmentsService } from '../services/appointmentsService'
 
-/**
- * Estado de "Nueva cita" (recepción): paciente, servicio/odontólogo/fecha, horario y opciones de correo.
- * Acepta `location.state = { patientId, dentistId }` para abrirse ya precargado (p. ej. cita de seguimiento).
- *
- * TODO(api): patientsService.list({ search }), appointmentsService.availability(), appointmentsService.create().
- * Si el API responde 409 (el espacio se ocupó mientras se llenaba el formulario), mostrar `conflict` con alternativas.
- */
+/** Reserva para un paciente existente, disponible para recepción y administración. */
 export function useReceptionBooking() {
   const navigate = useNavigate()
-  const { state } = useLocation()
-
   const [patientQuery, setPatientQuery] = useState('')
-  const [patientId, setPatientId] = useState(state?.patientId ?? null)
+  const [patientResults, setPatientResults] = useState([])
+  const [patient, setPatient] = useState(null)
+  const [services, setServices] = useState([])
+  const [dentists, setDentists] = useState([])
+  const [slots, setSlots] = useState([])
   const [serviceId, setServiceId] = useState('')
-  const [dentistId, setDentistId] = useState(state?.dentistId ? String(state.dentistId) : '')
-  const [date, setDate] = useState(MOCK_TODAY)
+  const [dentistId, setDentistId] = useState('')
+  const [date, setDate] = useState(todayInClinic)
   const [time, setTime] = useState(null)
-  const [notes, setNotes] = useState('')
-  const [sendConfirmation, setSendConfirmation] = useState(true)
-  const [scheduleReminder, setScheduleReminder] = useState(true)
-  const [conflict, setConflict] = useState(null)
+  const [availabilityVersion, setAvailabilityVersion] = useState(0)
+  const [isLoadingPatients, setIsLoadingPatients] = useState(true)
+  const [isLoadingServices, setIsLoadingServices] = useState(true)
+  const [isLoadingDentists, setIsLoadingDentists] = useState(false)
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState(null)
 
-  const patient = patientId ? findPatient(patientId) : null
-  const patientResults = useMemo(() => (patientQuery.trim() ? searchPatients(patientQuery).slice(0, 5) : []), [patientQuery])
-  const activeServices = useMemo(() => services.filter((service) => service.status === ENTITY_STATUS.ACTIVE), [])
-  const service = activeServices.find((item) => item.id === Number(serviceId)) ?? null
-  const dentists = useMemo(() => (serviceId ? dentistsForService(serviceId) : []), [serviceId])
-  const dentist = dentists.find((item) => item.id === Number(dentistId)) ?? null
-  const slots = useMemo(() => (dentist && date ? getAvailability(dentist.id, date) : []), [dentist, date])
+  useEffect(() => {
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      setIsLoadingPatients(true)
+      patientsService.list({ search: patientQuery || undefined }, { signal: controller.signal })
+        .then((items) => {
+          if (controller.signal.aborted) return
+          setPatientResults(items)
+        })
+        .catch((failure) => {
+          if (!controller.signal.aborted) setError(failure.message)
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setIsLoadingPatients(false)
+        })
+    }, patientQuery ? 250 : 0)
+    return () => { clearTimeout(timer); controller.abort() }
+  }, [patientQuery])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    servicesService.list(undefined, { signal: controller.signal })
+      .then((items) => {
+        if (!controller.signal.aborted) setServices(items)
+      })
+      .catch((failure) => {
+        if (!controller.signal.aborted) setError(failure.message)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoadingServices(false)
+      })
+    return () => controller.abort()
+  }, [])
+
+  useEffect(() => {
+    if (!serviceId) return
+    const controller = new AbortController()
+    dentistsService.list({ serviceId: Number(serviceId) }, { signal: controller.signal })
+      .then((items) => {
+        if (!controller.signal.aborted) setDentists(items.map((item) => ({ ...item, displayName: item.fullName })))
+      })
+      .catch((failure) => {
+        if (!controller.signal.aborted) setError(failure.message)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoadingDentists(false)
+      })
+    return () => controller.abort()
+  }, [serviceId])
+
+  useEffect(() => {
+    if (!serviceId || !dentistId || !date) return
+    const controller = new AbortController()
+    appointmentsService.availability({ dentistId: Number(dentistId), serviceId: Number(serviceId), date }, { signal: controller.signal })
+      .then((items) => {
+        if (!controller.signal.aborted) setSlots(items)
+      })
+      .catch((failure) => {
+        if (!controller.signal.aborted) setError(failure.message)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoadingSlots(false)
+      })
+    return () => controller.abort()
+  }, [serviceId, dentistId, date, availabilityVersion])
+
+  const service = useMemo(() => services.find((item) => item.id === Number(serviceId)) ?? null, [services, serviceId])
+  const dentist = useMemo(() => dentists.find((item) => item.id === Number(dentistId)) ?? null, [dentists, dentistId])
   const endTime = service && time ? addMinutes(time, service.durationMinutes) : null
+  const canSubmit = Boolean(patient && service && dentist && time && !isSubmitting)
+
+  const updatePatientQuery = (value) => {
+    setPatientQuery(value)
+    setPatientResults([])
+    setIsLoadingPatients(true)
+  }
 
   const selectService = (value) => {
+    if (value === serviceId) return
     setServiceId(value)
     setDentistId('')
+    setDentists([])
+    setSlots([])
     setTime(null)
+    setError(null)
+    setIsLoadingDentists(Boolean(value))
   }
 
   const selectDentist = (value) => {
+    if (value === dentistId) return
     setDentistId(value)
+    setSlots([])
     setTime(null)
+    setError(null)
+    setIsLoadingSlots(Boolean(value))
   }
 
   const selectDate = (value) => {
+    if (value === date) return
     setDate(value)
+    setSlots([])
     setTime(null)
+    setError(null)
+    setIsLoadingSlots(Boolean(dentistId && value))
   }
-
-  const applyAlternative = (slot) => {
-    setDentistId(String(slot.dentistId))
-    setDate(slot.date)
-    setTime(slot.time)
-    setConflict(null)
-  }
-
-  const canSubmit = Boolean(patient && service && dentist && time)
 
   const submit = async () => {
     if (!canSubmit) return
     setIsSubmitting(true)
+    setError(null)
     try {
-      // TODO(api): await appointmentsService.create({ patientId, dentistId, serviceId, date, time, notes })
-      // Ante ApiError.isConflict → setConflict({ slots: error.data.alternatives }) y no navegar.
-      navigate(ROUTES.RECEPTION_AGENDA)
+      const created = await appointmentsService.create({
+        patientId: patient.id,
+        serviceId: service.id,
+        dentistId: dentist.id,
+        date,
+        time,
+      })
+      navigate(ROUTES.RECEPTION_AGENDA, { state: { createdId: created.id, date } })
+    } catch (failure) {
+      setError(failure.isConflict ? 'Ese horario acaba de ocuparse. Elija otro espacio.' : failure.message)
+      if (failure.isConflict) {
+        setTime(null)
+        setSlots([])
+        setIsLoadingSlots(true)
+        setAvailabilityVersion((current) => current + 1)
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -80,14 +164,11 @@ export function useReceptionBooking() {
   return {
     patient,
     patientQuery,
-    setPatientQuery,
+    setPatientQuery: updatePatientQuery,
     patientResults,
-    selectPatient: (id) => {
-      setPatientId(id)
-      setPatientQuery('')
-    },
-    clearPatient: () => setPatientId(null),
-    services: activeServices,
+    selectPatient: (id) => { setPatient(patientResults.find((item) => item.id === id) ?? null); setPatientQuery('') },
+    clearPatient: () => setPatient(null),
+    services,
     service,
     serviceId,
     selectService,
@@ -96,24 +177,19 @@ export function useReceptionBooking() {
     dentistId,
     selectDentist,
     date,
+    today: todayInClinic(),
     selectDate,
     slots,
     time,
     selectTime: setTime,
     endTime,
-    notes,
-    setNotes,
-    sendConfirmation,
-    setSendConfirmation,
-    scheduleReminder,
-    setScheduleReminder,
-    conflict,
-    // Permite simular desde la UI el estado de conflicto del wireframe
-    simulateConflict: () => setConflict({ slots: alternativeSlots }),
-    dismissConflict: () => setConflict(null),
-    applyAlternative,
     canSubmit,
+    isLoadingPatients,
+    isLoadingServices,
+    isLoadingDentists,
+    isLoadingSlots,
     isSubmitting,
+    error,
     submit,
   }
 }

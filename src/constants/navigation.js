@@ -26,6 +26,7 @@ export const NAV_BY_ROLE = Object.freeze({
     { label: 'Servicios', to: ROUTES.ADMIN_SERVICES, icon: 'package', description: 'Catálogo y especialidades.' },
     { label: 'Usuarios', to: ROUTES.ADMIN_USERS, icon: 'shield', description: 'Cuentas y roles del sistema.' },
     { label: 'Agenda', to: ROUTES.RECEPTION_AGENDA, icon: 'calendar', description: 'Agenda del día de la clínica.' },
+    { label: 'Nueva cita', to: ROUTES.RECEPTION_NEW_APPOINTMENT, icon: 'plus', description: 'Agendar para un paciente.' },
   ],
 })
 
