@@ -13,7 +13,6 @@ import Landing from '@/pages/Landing'
 import NotFound from '@/pages/NotFound'
 import {
   AppointmentDetailPage,
-  AttentionPage,
   BookAppointmentPage,
   DentistAgendaPage,
   DentistPatientsPage,
@@ -107,7 +106,7 @@ export const routes = [
             element: <LazyOutlet />,
             children: [
               { path: ROUTES.DENTIST_AGENDA, element: <DentistAgendaPage /> },
-              { path: ROUTES.DENTIST_ATTENTION_PATTERN, element: <AttentionPage /> },
+              { path: ROUTES.DENTIST_ATTENTION_PATTERN, element: <AppointmentDetailPage /> },
               { path: ROUTES.DENTIST_PATIENTS, element: <DentistPatientsPage /> },
               { path: ROUTES.DENTIST_SCHEDULE, element: <MySchedulePage /> },
             ],

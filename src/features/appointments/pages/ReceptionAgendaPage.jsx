@@ -35,6 +35,12 @@ function ReceptionAgendaPage() {
   const [reloadVersion, setReloadVersion] = useState(0)
 
   useEffect(() => {
+    const refresh = () => { setIsLoading(true); setReloadVersion((v) => v + 1) }
+    window.addEventListener('focus', refresh)
+    return () => window.removeEventListener('focus', refresh)
+  }, [])
+
+  useEffect(() => {
     const controller = new AbortController()
     dentistsService.list(undefined, { signal: controller.signal })
       .then((items) => {

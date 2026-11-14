@@ -3,7 +3,8 @@ import { ApiService } from '@/api'
 const patientsApi = new ApiService('/patients')
 
 /**
- * Llamadas al API de pacientes. ESQUELETO: las páginas todavía usan features/patients/mocks/.
+ * Llamadas al API de pacientes. La búsqueda de recepción usa este servicio;
+ * otros formularios del módulo aún no están conectados.
  */
 export const patientsService = {
   /** GET /patients?search=&status=&page=&pageSize= */

@@ -24,9 +24,14 @@ export const appointmentsService = {
     }
   },
 
-  /** GET /appointments/:id (incluye paciente, odontólogo, servicio, bitácora y notificaciones). */
+  /** GET /appointments/:id */
   get(id, config) {
     return appointmentsApi.get(`/${id}`, config)
+  },
+
+  /** GET /appointments/:id/details: datos del paciente, bitácora y notificaciones reales. */
+  getDetails(id, config) {
+    return appointmentsApi.get(`/${id}/details`, config)
   },
 
   /** GET /appointments/availability?dentistId=&serviceId=&date= → [{ time, available }] */
@@ -47,9 +52,9 @@ export const appointmentsService = {
     })
   },
 
-  /** PATCH /appointments/:id/status { status: 'CONFIRMED' } */
-  confirm(id) {
-    return appointmentsApi.patch(`/${id}/status`, { status: 'CONFIRMED' })
+  /** PATCH /appointments/:id/status */
+  changeStatus(id, status, remarks) {
+    return appointmentsApi.patch(`/${id}/status`, { status, remarks: remarks || null })
   },
 
   /** PATCH /appointments/:id/reschedule { startsAt, dentistId, remarks } */
@@ -59,16 +64,6 @@ export const appointmentsService = {
       dentistId,
       remarks: remarks || null,
     })
-  },
-
-  /** PATCH /appointments/:id/status { status: 'CANCELLED', remarks } */
-  cancel(id, remarks) {
-    return appointmentsApi.patch(`/${id}/status`, { status: 'CANCELLED', remarks })
-  },
-
-  /** PATCH /appointments/:id/status { status: 'NO_SHOW' } */
-  markNoShow(id) {
-    return appointmentsApi.patch(`/${id}/status`, { status: 'NO_SHOW' })
   },
 
   /** POST /appointments/:id/notifications/resend */

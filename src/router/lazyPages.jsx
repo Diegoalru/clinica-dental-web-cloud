@@ -16,7 +16,6 @@ export const AppointmentDetailPage = lazy(() => import('@/features/appointments/
 export const PatientsPage = lazy(() => import('@/features/patients/pages/PatientsPage'))
 
 export const DentistAgendaPage = lazy(() => import('@/features/appointments/pages/DentistAgendaPage'))
-export const AttentionPage = lazy(() => import('@/features/medical-records/pages/AttentionPage'))
 export const DentistPatientsPage = lazy(() => import('@/features/patients/pages/DentistPatientsPage'))
 export const MySchedulePage = lazy(() => import('@/features/dentists/pages/MySchedulePage'))
 
