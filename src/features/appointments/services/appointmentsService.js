@@ -4,14 +4,24 @@ import { toApiDateTime } from '@/utils/clinicTime'
 const appointmentsApi = new ApiService('/appointments')
 
 /**
- * Llamadas al API de citas. ESQUELETO: las páginas todavía usan features/appointments/mocks/;
- * cada hook tiene un `TODO(api)` que indica qué método conectar. Los endpoints son los previstos
- * en la propuesta; ajustar las rutas cuando el API los publique.
+ * Llamadas al API de citas. Los flujos de reserva de paciente y personal usan los endpoints reales;
+ * otras vistas del módulo todavía tienen datos de maqueta.
  */
 export const appointmentsService = {
-  /** GET /appointments?date=&dentistId=&patientId=&status= */
+  /** GET /appointments?from=&to=&dentistId=&patientId=&status= */
   list(params, config) {
     return appointmentsApi.get('', { params, ...config })
+  },
+
+  async listAll(params = {}, config = {}) {
+    const items = []
+    let page = 1
+    while (true) {
+      const response = await appointmentsApi.get('', { params: { ...params, page, pageSize: 100 }, ...config })
+      items.push(...response.items)
+      if (items.length >= response.totalCount || response.items.length === 0) return items
+      page += 1
+    }
   },
 
   /** GET /appointments/:id (incluye paciente, odontólogo, servicio, bitácora y notificaciones). */
@@ -26,15 +36,14 @@ export const appointmentsService = {
 
   /**
    * POST /appointments. La cita nace en PENDING; el API guarda el precio de referencia y la bitácora.
-   * @param {{ patientId: number, dentistId: number, serviceId: number, date: string, time: string, notes?: string }} form
+   * @param {{ patientId: number, dentistId: number, serviceId: number, date: string, time: string }} form
    */
-  create({ patientId, dentistId, serviceId, date, time, notes }) {
+  create({ patientId, dentistId, serviceId, date, time }) {
     return appointmentsApi.post('', {
       patientId,
       dentistId,
       serviceId,
       startsAt: toApiDateTime(date, time),
-      notes: notes || null,
     })
   },
 
