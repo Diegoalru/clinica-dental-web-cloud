@@ -23,6 +23,7 @@ import { formatDateTimeLog, formatDayMonthYear, formatShortDate, formatTime24, f
 import AppointmentLogTimeline from '../components/AppointmentLogTimeline'
 import SlotPicker from '../components/SlotPicker'
 import { useAppointmentDetail } from '../hooks/useAppointmentDetail'
+import { appointmentsService } from '../services/appointmentsService'
 import { hasStarted } from '../utils/appointmentMapper'
 
 const TABS = [
