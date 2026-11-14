@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import Breadcrumb from '@/components/common/Breadcrumb'
 import PageContainer from '@/components/common/PageContainer'
@@ -6,17 +6,22 @@ import Alert from '@/components/ui/Alert'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import EmptyState from '@/components/ui/EmptyState'
+import FormField from '@/components/ui/FormField'
 import LoadingState from '@/components/ui/LoadingState'
 import Modal from '@/components/ui/Modal'
 import PageHeader from '@/components/ui/PageHeader'
+import Select from '@/components/ui/Select'
 import StatusBadge from '@/components/ui/StatusBadge'
 import Tabs from '@/components/ui/Tabs'
 import Textarea from '@/components/ui/Textarea'
 import { APPOINTMENT_STATUS, NOTIFICATION_TYPE_LABELS } from '@/constants/appointmentStatus'
 import { ROUTES } from '@/constants/routes'
+import { dentistsService } from '@/features/dentists/services/dentistsService'
+import { todayInClinic } from '@/utils/clinicTime'
 import { formatCurrency, formatDuration } from '@/utils/formatCurrency'
 import { formatDateTimeLog, formatDayMonthYear, formatShortDate, formatTime24, formatTimeRange } from '@/utils/dateLabels'
 import AppointmentLogTimeline from '../components/AppointmentLogTimeline'
+import SlotPicker from '../components/SlotPicker'
 import { useAppointmentDetail } from '../hooks/useAppointmentDetail'
 import { hasStarted } from '../utils/appointmentMapper'
 
@@ -40,13 +45,42 @@ function Field({ label, value }) {
 function AppointmentDetailPage() {
   const { id } = useParams()
   const detail = useAppointmentDetail(id)
-  const { appointment, history } = detail
+  const { appointment, history, setExternalError } = detail
 
   const [cancelOpen, setCancelOpen] = useState(false)
   const [tab, setTab] = useState('logs')
   const [cancelReason, setCancelReason] = useState('')
   const [cancelError, setCancelError] = useState(null)
   const [message, setMessage] = useState(null)
+  const [rescheduleOpen, setRescheduleOpen] = useState(false)
+  const [newDate, setNewDate] = useState('')
+  const [newDentistId, setNewDentistId] = useState('')
+  const [newTime, setNewTime] = useState(null)
+  const [reason, setReason] = useState('')
+  const [dentists, setDentists] = useState([])
+  const [slots, setSlots] = useState([])
+  const [slotsLoading, setSlotsLoading] = useState(false)
+
+  const serviceId = appointment?.service?.id
+  useEffect(() => {
+    if (!rescheduleOpen || !serviceId) return
+    const controller = new AbortController()
+    dentistsService.list({ serviceId }, { signal: controller.signal })
+      .then((items) => { if (!controller.signal.aborted) setDentists(items) })
+      .catch((failure) => { if (!controller.signal.aborted) setExternalError(failure.message) })
+    return () => controller.abort()
+  }, [rescheduleOpen, serviceId, setExternalError])
+
+  useEffect(() => {
+    if (!rescheduleOpen || !serviceId || !newDentistId || !newDate) return
+    const controller = new AbortController()
+    appointmentsService.availability({ dentistId: Number(newDentistId), serviceId, date: newDate },
+      { signal: controller.signal })
+      .then((items) => { if (!controller.signal.aborted) setSlots(items) })
+      .catch((failure) => { if (!controller.signal.aborted) setExternalError(failure.message) })
+      .finally(() => { if (!controller.signal.aborted) setSlotsLoading(false) })
+    return () => controller.abort()
+  }, [rescheduleOpen, serviceId, newDentistId, newDate, setExternalError])
 
   if (detail.isLoading) {
     return (
@@ -93,6 +127,27 @@ function AppointmentDetailPage() {
     setCancelReason('')
   }
 
+  const openReschedule = () => {
+    setNewDate(appointment.date)
+    setNewDentistId(String(appointment.dentist.id))
+    setNewTime(null)
+    setSlots([])
+    setSlotsLoading(true)
+    setReason('')
+    setRescheduleOpen(true)
+  }
+
+  const saveReschedule = async () => {
+    if (!newTime) return
+    if (await detail.reschedule({ date: newDate, time: newTime, dentistId: Number(newDentistId), remarks: reason })) {
+      setRescheduleOpen(false)
+      setMessage('Cita reprogramada. Quedó pendiente de confirmación.')
+    } else {
+      setNewTime(null)
+      setSlots([])
+    }
+  }
+
   return (
     <PageContainer>
       <PageHeader
@@ -110,6 +165,11 @@ function AppointmentDetailPage() {
               {appointment.status === APPOINTMENT_STATUS.PENDING && !started && (
                 <Button icon="check" loading={detail.isSaving} onClick={() => run(detail.confirm, 'Cita confirmada.')}>
                   Confirmar
+                </Button>
+              )}
+              {!started && (
+                <Button variant="secondary" disabled={detail.isSaving} onClick={openReschedule}>
+                  Reprogramar
                 </Button>
               )}
               {started ? (
@@ -155,6 +215,30 @@ function AppointmentDetailPage() {
             </dl>
           </Card>
 
+          {rescheduleOpen && (
+            <Card title="Reprogramar" description="Seleccione un horario disponible; la cita volverá a Pendiente.">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField label="Nueva fecha" type="date" min={todayInClinic()} value={newDate}
+                  onChange={(event) => { setNewDate(event.target.value); setNewTime(null); setSlots([]); setSlotsLoading(true) }} />
+                <Select label="Odontólogo" value={newDentistId}
+                  onChange={(event) => { setNewDentistId(event.target.value); setNewTime(null); setSlots([]); setSlotsLoading(true) }}
+                  options={dentists.map((item) => ({ value: item.id, label: item.fullName }))} />
+              </div>
+              <div className="mt-4">
+                <SlotPicker slots={slotsLoading ? [] : slots} value={newTime} onChange={setNewTime}
+                  columns={5} emptyMessage={slotsLoading ? 'Consultando horarios…' : 'No hay espacios para esta fecha.'} />
+              </div>
+              <Textarea label="Motivo del cambio" className="mt-4" rows={2} maxLength={480}
+                value={reason} onChange={(event) => setReason(event.target.value)} />
+              <div className="mt-4 flex justify-end gap-2">
+                <Button variant="secondary" onClick={() => setRescheduleOpen(false)}>Descartar</Button>
+                <Button disabled={!newTime || detail.isSaving} loading={detail.isSaving} onClick={saveReschedule}>
+                  Guardar cambio
+                </Button>
+              </div>
+            </Card>
+          )}
+
           <Card padding={false} title={tab === 'logs' ? 'Bitácora' : 'Historial del paciente'} actions={<Tabs variant="pills" items={TABS} value={tab} onChange={setTab} label="Sección" />}>
             <div className="p-5">
               {tab === 'logs' ? (
@@ -188,7 +272,11 @@ function AppointmentDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <Card title="Notificaciones">
+          <Card title="Notificaciones" actions={isOpen && !started &&
+            <Button variant="secondary" size="sm" disabled={detail.isSaving}
+              onClick={() => run(detail.resendConfirmation, 'Confirmación agregada a la cola de notificaciones.')}>
+              Encolar confirmación
+            </Button>}>
             {notifications.length === 0 ? (
               <p className="text-sm text-slate-500">Sin notificaciones registradas.</p>
             ) : (

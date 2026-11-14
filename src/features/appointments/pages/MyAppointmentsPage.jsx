@@ -12,7 +12,6 @@ import Table, { Td, Th } from '@/components/ui/Table'
 import Tabs from '@/components/ui/Tabs'
 import { APPOINTMENT_STATUS, APPOINTMENT_STATUS_LABELS } from '@/constants/appointmentStatus'
 import { ROUTES } from '@/constants/routes'
-import { useAuth } from '@/hooks/useAuth'
 import { todayInClinic } from '@/utils/clinicTime'
 import { formatDayMonthYear, formatTime24 } from '@/utils/dateLabels'
 import AppointmentCard from '../components/AppointmentCard'
@@ -29,7 +28,6 @@ const HISTORY_FILTERS = [
 const UPCOMING_STATUSES = [APPOINTMENT_STATUS.PENDING, APPOINTMENT_STATUS.CONFIRMED]
 
 function MyAppointmentsPage() {
-  const { user } = useAuth()
   const location = useLocation()
   const [showCreated, setShowCreated] = useState(Boolean(location.state?.created))
   const [filter, setFilter] = useState('ALL')
@@ -40,9 +38,12 @@ function MyAppointmentsPage() {
 
   useEffect(() => {
     const controller = new AbortController()
-    appointmentsService.listAll({ patientId: user.patientId }, { signal: controller.signal })
+    appointmentsService.listAll({}, { signal: controller.signal })
       .then((items) => {
-        if (!controller.signal.aborted) setAppointments(items.map(toDisplayAppointment))
+        if (!controller.signal.aborted) {
+          setAppointments(items.map(toDisplayAppointment))
+          setError(null)
+        }
       })
       .catch((failure) => {
         if (!controller.signal.aborted) setError(failure.message)
@@ -51,7 +52,13 @@ function MyAppointmentsPage() {
         if (!controller.signal.aborted) setIsLoading(false)
       })
     return () => controller.abort()
-  }, [user.patientId, reloadVersion])
+  }, [reloadVersion])
+
+  useEffect(() => {
+    const refresh = () => setReloadVersion((version) => version + 1)
+    window.addEventListener('focus', refresh)
+    return () => window.removeEventListener('focus', refresh)
+  }, [])
 
   const today = todayInClinic()
   const upcoming = appointments

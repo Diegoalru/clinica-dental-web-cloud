@@ -6,6 +6,8 @@ import PageHeader from '@/components/ui/PageHeader'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { NAV_BY_ROLE, ROLE_TONES } from '@/constants/navigation'
 import { ROLE_LABELS } from '@/constants/roles'
+import { ROLES } from '@/constants/roles'
+import PatientNextAppointment from '@/features/appointments/components/PatientNextAppointment'
 import { useAuth } from '@/hooks/useAuth'
 
 // Página de inicio con sesión: hub con los accesos a los módulos del rol (lo que devuelve GET /auth/me).
@@ -42,6 +44,8 @@ function Dashboard() {
           </Link>
         ))}
       </div>
+
+      {user.role === ROLES.PATIENT && <PatientNextAppointment />}
 
       <Card title="Su cuenta" description="Datos que reconoce el sistema para su sesión.">
         <dl className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-3">
